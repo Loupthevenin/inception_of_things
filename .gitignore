@@ -1,0 +1,35 @@
+# Fichiers générés par Vagrant
+.vagrant/
+*.box
+
+# Clés SSH éventuellement générées
+*.pem
+*.key
+*.crt
+
+# Fichiers de log
+*.log
+
+# Dossiers temporaires
+tmp/
+temp/
+*.swp
+*.swo
+
+# Répertoires Python (si jamais tu fais des scripts)
+__pycache__/
+*.pyc
+
+# Éditeurs de code
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
+
+# Archives / backup
+*.tar
+*.gz
+*.zip
+*.bak
+
