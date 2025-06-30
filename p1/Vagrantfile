@@ -1,5 +1,5 @@
 Vagrant.configure("2") do |config|
-  config.vm.box = "generic/ubuntu2204"
+  config.vm.box = "ubuntu/jammy64"
 
   # Server
   config.vm.define "ltheveniS" do |server|
@@ -7,7 +7,7 @@ Vagrant.configure("2") do |config|
     server.vm.network "private_network", ip: "192.168.56.110"
     server.vm.provider "virtualbox" do |vb|
       vb.name = "ltheveniS"
-      vb.memory = 1024
+      vb.memory = 512
       vb.cpus = 1
     end
 
@@ -22,7 +22,7 @@ Vagrant.configure("2") do |config|
     worker.vm.network "private_network", ip: "192.168.56.111"
     worker.vm.provider "virtualbox" do |vb|
       vb.name = "ltheveniSW"
-      vb.memory = 1024
+      vb.memory = 512
       vb.cpus = 1
     end
   end
