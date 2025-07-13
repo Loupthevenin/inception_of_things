@@ -35,5 +35,5 @@ until kubectl get nodes &>/dev/null; do
 done
 success "API Kubernetes disponible."
 
-kubectl apply -f /vagrant/confs/deploy.yaml
+kubectl apply -f /vagrant/confs/
 success "Manifests Kubernetes appliqués."
