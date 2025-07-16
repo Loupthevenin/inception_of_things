@@ -7,6 +7,8 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+NODE_IP="192.168.56.110"
+
 function info {
 	echo -e "${CYAN}➜ $1${NC}"
 }
@@ -19,9 +21,11 @@ function error {
 	echo -e "${RED}✘ $1${NC}"
 }
 
-info "Installation de K3s server..."
+info "Setup"
+apt install -y net-tools
 
-if curl -sfL https://get.k3s.io | sh -; then
+info "Installation de K3s server..."
+if curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--node-ip=${NODE_IP}" sh -; then
 	success "K3s server installé avec succès."
 else
 	error "Échec de l'installation de K3s server."
