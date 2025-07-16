@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: iot
+  namespace: argocd
+spec:
+  destination:
+    namespace: dev
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://github.com/Loupthevenin/iot-ltheveni
+    targetRevision: HEAD
+    path: dev
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
