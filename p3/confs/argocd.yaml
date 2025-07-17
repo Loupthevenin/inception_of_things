@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/Loupthevenin/iot-ltheveni
     targetRevision: HEAD
-    path: dev
+    path: manifests
   project: default
   syncPolicy:
     automated:
