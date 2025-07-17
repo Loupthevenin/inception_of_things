@@ -2,6 +2,8 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Couleurs
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -57,7 +59,7 @@ if k3d cluster list | grep -q $CLUSTER_NAME; then
 	info "Cluster '$CLUSTER_NAME' already exists. Skipping creation."
 else
 	info "Creating K3D cluster '$CLUSTER_NAME'..."
-	k3d cluster create $CLUSTER_NAME --port 8888:80@loadbalancer
+	k3d cluster create $CLUSTER_NAME
 	success "Cluster '$CLUSTER_NAME' created."
 fi
 
@@ -82,7 +84,7 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
 sleep 2
 
 info "Applying Argo CD Application manifest..."
-kubectl apply -f ../confs/argocd.yaml -n argocd
+kubectl apply -f "$SCRIPT_DIR/../confs/argocd.yaml" -n argocd
 success "Application resource created. Argo CD should start syncing."
 
 # Credentials
