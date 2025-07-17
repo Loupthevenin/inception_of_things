@@ -39,5 +39,13 @@ until kubectl get nodes &>/dev/null; do
 done
 success "API Kubernetes disponible."
 
+info "Création des ConfigMaps HTML personnalisés..."
+
+kubectl create configmap app1-html --from-file=index.html=/vagrant/scripts/indexApp1.html --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap app2-html --from-file=index.html=/vagrant/scripts/indexApp2.html --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap app3-html --from-file=index.html=/vagrant/scripts/indexApp3.html --dry-run=client -o yaml | kubectl apply -f -
+
+success "ConfigMaps appliqués."
+
 kubectl apply -f /vagrant/confs/
 success "Manifests Kubernetes appliqués."
