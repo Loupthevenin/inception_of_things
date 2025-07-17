@@ -92,4 +92,17 @@ info "You can now access Argo CD UI at: http://localhost:8080..."
 echo -e "${YELLOW}Default login: admin"
 echo -e "Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)${NC}"
 
+info "Waiting for wil-playground Pod to be Ready..."
+kubectl wait --for=condition=ready pod -l app=wil-playground -n dev --timeout=120s || {
+	echo -e "${RED}✘ Timeout: wil-playground Pod is not Ready.${NC}"
+	kubectl get pods -n dev
+	exit 1
+}
+
+success "wil-playground Pod is Ready."
+
+#port-forward 
+info "Starting port-forward to service 'wil-playground'..."
+kubectl port-forward svc/wil-playground -n dev 8888:8888
+
 info "Setup complete!"

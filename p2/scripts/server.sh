@@ -49,3 +49,28 @@ success "ConfigMaps appliqués."
 
 kubectl apply -f /vagrant/confs/
 success "Manifests Kubernetes appliqués."
+
+info "Attente état ready des 3 applications..."
+
+TIMEOUT=120
+INTERVAL=5
+ELAPSED=0
+
+while true; do
+	READY_COUNT=$(kubectl get pods -n default --field-selector=status.phase=Running --no-headers | grep -c "1/1")
+
+	if [ "$READY_COUNT" -ge 3 ]; then
+		success "Les 3 applications sont prêtes."
+		break
+	fi
+
+	if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+		error "Timeout atteint : certaines applications ne sont pas prêtes."
+		kubectl get pods -n default
+		exit 1
+	fi
+
+	echo -n "."
+	sleep "$INTERVAL"
+	ELAPSED=$((ELAPSED + INTERVAL))
+done
