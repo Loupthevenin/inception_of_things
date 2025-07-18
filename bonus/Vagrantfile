@@ -1,0 +1,28 @@
+Vagrant.configure("2") do |config|
+  host_os = RbConfig::CONFIG['host_os']
+  host_cpu = RbConfig::CONFIG['host_cpu']
+
+  if host_os =~ /darwin/ && host_cpu == "arm64"
+    box = "bento/ubuntu-22.04"
+  else
+    box = "ubuntu/jammy64"
+  end
+  provider = "virtualbox"
+  puts "🛠️  Vagrant is using provider: #{provider}, with box: #{box}"
+
+  config.vm.box = box
+
+  # Server
+  config.vm.define "ltheveniS" do |server|
+    server.vm.hostname = "ltheveniS"
+    server.vm.network "forwarded_port", guest: 8080, host: 8080
+    server.vm.network "forwarded_port", guest: 8888, host: 8888
+    server.vm.network "forwarded_port", guest: 8889, host: 8889
+    server.vm.provider provider do |vb|
+      vb.name = "ltheveniS"
+      vb.memory = 8192
+      vb.cpus = 6
+    end
+    server.vm.provision "shell", path: "./scripts/install.sh"
+  end
+end
