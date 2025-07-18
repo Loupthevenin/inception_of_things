@@ -19,6 +19,11 @@ function success {
 	echo -e "${GREEN}✔ $1${NC}"
 }
 
+function error_exit {
+	echo -e "${RED}✔ $1${NC}"
+	exit 1
+}
+
 # Dependencies
 info "Installing required packages..."
 sudo apt update -y
@@ -74,6 +79,11 @@ kubectl create namespace argocd && kubectl create namespace dev
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 success "Argo CD deployed in 'argocd' namespace."
 
+#Remove endpoint exclusion
+kubectl -n argocd patch configmap argocd-cm --type merge -p '{"data":{"resource.exclusions":""}}'
+
+kubectl -n argocd rollout restart deployment argocd-server
+
 # Wait for Argo CD to be ready
 info "Waiting for Argo CD server to be available..."
 kubectl wait --for=condition=available --timeout=180s -n argocd deploy/argocd-server || error_exit "Argo CD server is not ready in time."
@@ -92,17 +102,30 @@ info "You can now access Argo CD UI at: http://localhost:8080..."
 echo -e "${YELLOW}Default login: admin"
 echo -e "Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)${NC}"
 
-info "Waiting for wil-playground Pod to be Ready..."
-kubectl wait --for=condition=ready pod -l app=wil-playground -n dev --timeout=120s || {
-	echo -e "${RED}✘ Timeout: wil-playground Pod is not Ready.${NC}"
-	kubectl get pods -n dev
-	exit 1
-}
+info "Waiting for wil-playground Pod to be created by ArgoCD..."
+ATTEMPTS=0
+until kubectl get pod -l app=wil-playground -n dev 2>/dev/null | grep -q wil-playground || [ $ATTEMPTS -ge 60 ]; do
+echo -e "${YELLOW}➜ Pod not found yet. Waiting... (${ATTEMPTS}/60)${NC}"
+ATTEMPTS=$((ATTEMPTS + 1))
+sleep 5
+done
 
-success "wil-playground Pod is Ready."
+if [ $ATTEMPTS -ge 24 ]; then
+echo -e "${RED}✘ Timeout: Pod was not created after 2 minutes.${NC}"
+kubectl get pods -n dev
+exit 1
+fi
+
+info "wil-playground Pod found. Waiting for it to become Ready..."
+kubectl wait --for=condition=ready pod -l app=wil-playground -n dev --timeout=120s || {
+echo -e "${RED}✘ Timeout: wil-playground Pod is not Ready.${NC}"
+kubectl get pods -n dev
+exit 1
+}
 
 #port-forward 
 info "Starting port-forward to service 'wil-playground'..."
-kubectl port-forward svc/wil-playground -n dev 8888:8888
+kubectl port-forward svc/wil-playground -n dev 8888:8888 >/dev/null 2>&1 &
+sleep 2
 
 info "Setup complete!"

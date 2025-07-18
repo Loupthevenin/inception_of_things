@@ -30,7 +30,7 @@ function error {
 info "Setup"
 apt install -y net-tools
 
-info "⏳ Attente du token K3s dans ${TOKEN_FILE}..."
+info "Attente du token K3s dans ${TOKEN_FILE}..."
 while [ ! -s "${TOKEN_FILE}" ]; do
 	sleep 2
 done
