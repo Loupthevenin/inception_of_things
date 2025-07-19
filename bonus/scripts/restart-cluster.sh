@@ -38,7 +38,22 @@ function wait_for_pod_ready() {
 	done
 }
 
-k3d cluster start iot
+function is_cluster_running() {
+	local cluster_name=$1
+	k3d cluster list "$cluster_name" -o json 2>/dev/null | jq -e '.[0].serversRunning == .[0].serversCount' >/dev/null
+}
+
+pkill -f "kubectl port-forward"
+
+CLUSTER_NAME="iot"
+
+if is_cluster_running "$CLUSTER_NAME"; then
+	info "Cluster '$CLUSTER_NAME' is already running."
+else
+	info "Starting cluster '$CLUSTER_NAME'..."
+	k3d cluster start "$CLUSTER_NAME"
+	success "Cluster '$CLUSTER_NAME' started."
+fi
 
 wait_for_pod_ready gitlab app=gitlab-webservice-default 600
 wait_for_pod_ready argocd app.kubernetes.io/name=argocd-server 300

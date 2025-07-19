@@ -63,21 +63,39 @@ helm upgrade --install gitlab gitlab/gitlab \
 success "GitLab installed in 'gitlab' namespace."
 
 info "Waiting for GitLab Webservice to be ready (this takes a while)..."
-(kubectl get pods -n gitlab --watch --selector=app=gitlab-webservice) &
-# On récupère le PID du watch
-WATCH_PID=$!
+while true; do
+	not_ready=$(kubectl get pods -n gitlab --no-headers 2>/dev/null | grep -Ev 'Running|Completed' || true)
 
-# Attente condition ready
-kubectl wait --namespace gitlab --for=condition=available deploy/gitlab-webservice-default --timeout=600s
-
-# Kill le watch dès que prêt
-kill $WATCH_PID 2>/dev/null
+	if [ -z "$not_ready" ]; then
+		success "All GitLab pods are ready."
+		break
+	else
+		clear
+		echo -e "${YELLOW}Waiting for GitLab pods to be ready...${NC}"
+		kubectl get pods -n gitlab
+		sleep 5
+	fi
+done
 success "GitLab is ready."
 
 info "Starting port-forward on GitLab (gitlab.local:8889)..."
 kubectl port-forward -n gitlab svc/gitlab-webservice-default 8889:8181 >/dev/null 2>&1 &
 
-sleep 2
+# Wait until port 8889 is open and accepting connections
+echo -n "⏳ Waiting for port-forward to be available on localhost:8889..."
+for i in {1..30}; do
+	if nc -z localhost 8889; then
+		echo -e "\n${GREEN}✔ Port-forward is ready.${NC}"
+		break
+	fi
+	sleep 1
+done
+
+# If still not ready after timeout
+if ! nc -z localhost 8889; then
+	echo -e "\n${RED}✘ Port-forward to GitLab failed to establish within timeout.${NC}"
+	exit 1
+fi
 
 ## Ajouter le repo github a gitlab
 info "Authenticating and creating GitLab project..."
