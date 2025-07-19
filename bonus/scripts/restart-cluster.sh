@@ -48,7 +48,7 @@ info "Starting port-forward on Argo CD UI (localhost:8080)..."
 kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
 
 info "Starting port-forward to service 'wil-playground'..."
-kubectl port-forward svc/wil-playground -n dev 8888:8888
+kubectl port-forward svc/wil-playground -n dev 8888:8888 >/dev/null 2>&1 &
 
 info "Starting port-forward on GitLab (gitlab.local:8889)..."
 kubectl port-forward -n gitlab svc/gitlab-webservice-default 8889:8181 >/dev/null 2>&1 &
