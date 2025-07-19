@@ -59,7 +59,15 @@ helm upgrade --install gitlab gitlab/gitlab \
 success "GitLab installed in 'gitlab' namespace."
 
 info "Waiting for GitLab Webservice to be ready (this takes a while)..."
+kubectl get pods -n gitlab --watch --selector=app=gitlab-webservice &
+# On récupère le PID du watch
+WATCH_PID=$!
+
+# Attente condition ready
 kubectl wait --namespace gitlab --for=condition=available deploy/gitlab-webservice-default --timeout=600s
+
+# Kill le watch dès que prêt
+kill $WATCH_PID 2>/dev/null
 success "GitLab is ready."
 
 info "Starting port-forward on GitLab (localhost:8889)..."
