@@ -98,7 +98,8 @@ PRIVATE_TOKEN=$(curl -s --request POST http://localhost:8889/api/v4/session \
 
 REPO_NAME="iot-ltheveni"
 
-curl --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
+info "Creating new public GitLab project '$REPO_NAME'..."
+curl --silent --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
 	--data "name=$REPO_NAME" \
 	--data "visibility=public" \
 	http://localhost:8889/api/v4/projects
