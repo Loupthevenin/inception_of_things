@@ -1,3 +1,7 @@
+#!/bin/bash
+
+set -e
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 GITLAB_DOMAIN="gitlab.local"
@@ -70,7 +74,7 @@ kubectl wait --namespace gitlab --for=condition=available deploy/gitlab-webservi
 kill $WATCH_PID 2>/dev/null
 success "GitLab is ready."
 
-info "Starting port-forward on GitLab (localhost:8889)..."
+info "Starting port-forward on GitLab (gitlab.local:8889)..."
 kubectl port-forward -n gitlab svc/gitlab-webservice-default 8889:8181 >/dev/null 2>&1 &
 
 sleep 2
