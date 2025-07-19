@@ -63,7 +63,7 @@ helm upgrade --install gitlab gitlab/gitlab \
 success "GitLab installed in 'gitlab' namespace."
 
 info "Waiting for GitLab Webservice to be ready (this takes a while)..."
-kubectl get pods -n gitlab --watch --selector=app=gitlab-webservice &
+(kubectl get pods -n gitlab --watch --selector=app=gitlab-webservice) &
 # On récupère le PID du watch
 WATCH_PID=$!
 
@@ -92,19 +92,30 @@ if ! command -v jq &>/dev/null; then
 	sudo apt install -y jq
 fi
 
-PRIVATE_TOKEN=$(curl -s --request POST http://localhost:8889/api/v4/session \
+PRIVATE_TOKEN=$(curl -s --request POST http://gitlab.local:8889/api/v4/session \
 	--form "login=root" \
 	--form "password=$GITLAB_PASSWORD" | jq -r '.private_token')
 
 REPO_NAME="iot-ltheveni"
 
-info "Creating new public GitLab project '$REPO_NAME'..."
-curl --silent --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
-	--data "name=$REPO_NAME" \
-	--data "visibility=public" \
-	http://localhost:8889/api/v4/projects
+# Check if project exists
+PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
+	"http://gitlab.local:8889/api/v4/projects?search=$REPO_NAME" | jq -r ".[] | select(.name==\"$REPO_NAME\") | .id")
 
-GITLAB_REPO="http://root:$GITLAB_PASSWORD@localhost:8889/root/$REPO_NAME.git"
+if [ -n "$PROJECT_ID" ]; then
+	info "Project already exists. Updating visibility to public..."
+	curl --request PUT --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
+		--data "visibility=public" \
+		"http://gitlab.local:8889/api/v4/projects/$PROJECT_ID"
+else
+	info "Creating new public GitLab project '$REPO_NAME'..."
+	curl --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
+		--data "name=$REPO_NAME" \
+		--data "visibility=public" \
+		http://gitlab.local:8889/api/v4/projects
+fi
+
+GITLAB_REPO="http://root:$GITLAB_PASSWORD@gitlab.local:8889/root/$REPO_NAME.git"
 
 info "Cloning GitHub repo..."
 git clone "$GITHUB_REPO" /tmp/iot
