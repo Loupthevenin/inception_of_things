@@ -4,6 +4,11 @@ set -e
 
 SCRIPT_DIR=/vagrant/scripts
 
+GITLAB_DOMAIN="gitlab.local"
+REGISTRY_DOMAIN="registry.local"
+MINIO_DOMAIN="minio.local"
+HOSTS_LINE="127.0.0.1 $GITLAB_DOMAIN $REGISTRY_DOMAIN $MINIO_DOMAIN"
+
 # Couleurs
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -36,7 +41,7 @@ fi
 # kubectl
 info "Installing kubectl..."
 if ! command -v kubectl &>/dev/null; then
-	curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+	curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
 	chmod +x kubectl
 	sudo mv kubectl /usr/local/bin
 	success "kubectl installed."
@@ -75,12 +80,23 @@ fi
 
 # Wait for nodes
 info "Waiting for K3D nodes to be ready..."
-kubectl wait node --all --for=condition=Ready --timeout=60s || error_exit "Nodes did not become ready."
+kubectl wait node --all --for=condition=Ready --timeout=60s || {
+	echo -e "${RED}✘ K3D nodes not ready.${NC}"
+	exit 1
+}
 success "K3D nodes are ready."
 
 # Gitlab
 info "Creating 'gitlab' namespace..."
 kubectl create namespace gitlab
+
+# Vérifie si les domaines sont déjà présents
+if ! grep -q "$GITLAB_DOMAIN" /etc/hosts; then
+	echo "$HOSTS_LINE" | sudo tee -a /etc/hosts >/dev/null
+	echo "✅ Domaines ajoutés à /etc/hosts : $HOSTS_LINE"
+else
+	echo "ℹ️ Entrées déjà présentes dans /etc/hosts."
+fi
 
 info "Adding Gitlab Helm repo..."
 helm repo add gitlab https://charts.gitlab.io/
@@ -89,14 +105,11 @@ helm repo update
 info "Installing Gitlab with Helm..."
 helm upgrade --install gitlab gitlab/gitlab \
 	--namespace gitlab \
-	--create-namespace \
-	--timeout 20m \
-	--set global.hosts.domain=localhost \
-	--set global.hosts.externalIP=127.0.0.1 \
-	--set global.ingress.configureCertmanager=false \
-	--set certmanager.install=false \
-	--set certmanager-issuer.email="dev@example.com" \
-	--set nginx-ingress.enabled=false
+	-f https://gitlab.com/gitlab-org/charts/gitlab/raw/master/examples/values-minikube-minimum.yaml \
+	--set global.hosts.domain=local \
+	--set global.hosts.externalIP=0.0.0.0 \
+	--set global.hosts.https=false \
+	--timeout 600s
 success "GitLab installed in 'gitlab' namespace."
 
 info "Waiting for GitLab Webservice to be ready (this takes a while)..."
