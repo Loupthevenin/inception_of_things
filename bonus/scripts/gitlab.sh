@@ -35,7 +35,7 @@ if ! command -v helm &>/dev/null; then
 	rm get_helm.sh
 	success "Helm installed"
 else
-	success
+	success "Helm is already installed."
 fi
 
 # Gitlab
@@ -82,6 +82,11 @@ success "GitLab is ready."
 info "Creating GitLab Ingress..."
 kubectl apply -f "$SCRIPT_DIR/../confs/gitlab-ingress.yaml"
 success "Ingress appliqué"
+
+info "Setting up port-forward for GitLab Webservice on localhost:8181..."
+kubectl -n gitlab port-forward svc/gitlab-webservice-default 8181:80 >/dev/null 2>&1 &
+PF_PID=$!
+success "Port-forward lancé (PID=$PF_PID) → http://gitlab.local:8181"
 
 ## Ajouter le repo github a gitlab
 info "Authenticating and creating GitLab project..."
