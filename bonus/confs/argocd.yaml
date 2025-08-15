@@ -8,7 +8,7 @@ spec:
     namespace: dev
     server: https://kubernetes.default.svc
   source:
-    repoURL: http://gitlab.local:8889/root/iot-ltheveni.git
+    repoURL: http://gitlab-webservice-default.gitlab.svc.cluster.local:8181/root/iot-ltheveni.git
     targetRevision: HEAD
     path: manifests
   project: default

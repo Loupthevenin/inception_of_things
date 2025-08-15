@@ -5,11 +5,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 GITLAB_DOMAIN="gitlab.local"
-REGISTRY_DOMAIN="registry.local"
-MINIO_DOMAIN="minio.local"
-HOSTS_LINE="127.0.0.1 $GITLAB_DOMAIN $REGISTRY_DOMAIN $MINIO_DOMAIN"
+HOSTS_LINE="127.0.0.1 $GITLAB_DOMAIN"
 
 GITHUB_REPO="https://github.com/Loupthevenin/iot-ltheveni.git"
+REPO_NAME="iot-ltheveni"
 
 # Couleurs
 RED='\033[0;31m'
@@ -17,13 +16,16 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
-
 function info {
 	echo -e "${CYAN}➜ $1${NC}"
 }
-
 function success {
 	echo -e "${GREEN}✔ $1${NC}"
+}
+function warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
+function fail() {
+	echo -e "${RED}✘ $1${NC}"
+	exit 1
 }
 
 # Helm
@@ -56,10 +58,9 @@ info "Installing Gitlab with Helm..."
 helm upgrade --install gitlab gitlab/gitlab \
 	--namespace gitlab \
 	-f https://gitlab.com/gitlab-org/charts/gitlab/raw/master/examples/values-minikube-minimum.yaml \
-	--set global.hosts.domain=local \
-	--set global.hosts.externalIP=0.0.0.0 \
+	--set global.hosts.domain=gitlab.local \
 	--set global.hosts.https=false \
-	--timeout 600s
+	--timeout 30m
 success "GitLab installed in 'gitlab' namespace."
 
 info "Waiting for GitLab Webservice to be ready (this takes a while)..."
@@ -78,24 +79,9 @@ while true; do
 done
 success "GitLab is ready."
 
-info "Starting port-forward on GitLab (gitlab.local:8889)..."
-kubectl port-forward -n gitlab svc/gitlab-webservice-default 8889:8181 >/dev/null 2>&1 &
-
-# Wait until port 8889 is open and accepting connections
-echo -n "⏳ Waiting for port-forward to be available on localhost:8889..."
-for i in {1..30}; do
-	if nc -z localhost 8889; then
-		echo -e "\n${GREEN}✔ Port-forward is ready.${NC}"
-		break
-	fi
-	sleep 1
-done
-
-# If still not ready after timeout
-if ! nc -z localhost 8889; then
-	echo -e "\n${RED}✘ Port-forward to GitLab failed to establish within timeout.${NC}"
-	exit 1
-fi
+info "Creating GitLab Ingress..."
+kubectl apply -f "$SCRIPT_DIR/../confs/gitlab-ingress.yaml"
+success "Ingress appliqué"
 
 ## Ajouter le repo github a gitlab
 info "Authenticating and creating GitLab project..."
@@ -105,57 +91,72 @@ if [ "$GITLAB_PASSWORD" = "Not Found" ]; then
 	exit 1
 fi
 
+info "Création d’un Personal Access Token (root) via gitlab-toolbox…"
+TOOLBOX_POD=$(kubectl -n gitlab get pod -l app=toolbox -o jsonpath='{.items[0].metadata.name}')
+[ -z "$TOOLBOX_POD" ] && fail "Pod toolbox introuvable (attends encore un peu et relance)"
+
+PAT=$(openssl rand -hex 24)
+
+kubectl -n gitlab exec "$TOOLBOX_POD" -- bash -lc "
+TOKEN='$PAT' gitlab-rails runner \"
+u = User.find_by_username('root');
+t = u.personal_access_tokens.find_by(name: 'bootstrap') || u.personal_access_tokens.build(name: 'bootstrap', scopes: [:api, :read_api, :read_repository, :write_repository]);
+t.set_token(ENV['TOKEN']);
+t.expires_at = 1.year.from_now;
+t.save!;
+puts 'OK';
+\"
+" >/dev/null
+success "PAT root créé"
+
 if ! command -v jq &>/dev/null; then
 	info "Installing jq..."
-	sudo apt install -y jq
+	sudo apt-get update -y
+	sudo apt-get install -y jq
 fi
 
-PRIVATE_TOKEN=$(curl -s --request POST http://gitlab.local:8889/api/v4/session \
-	--form "login=root" \
-	--form "password=$GITLAB_PASSWORD" | jq -r '.private_token')
+API="http://gitlab.local/api/v4"
+info "Vérification/création du projet '$REPO_NAME'…"
+PROJECT_ID=$(curl -sS --header "PRIVATE-TOKEN: $PAT" "$API/projects?search=$REPO_NAME" |
+	jq -r ".[] | select(.name==\"$REPO_NAME\") | .id")
 
-REPO_NAME="iot-ltheveni"
-
-# Check if project exists
-PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
-	"http://gitlab.local:8889/api/v4/projects?search=$REPO_NAME" | jq -r ".[] | select(.name==\"$REPO_NAME\") | .id")
-
-if [ -n "$PROJECT_ID" ]; then
-	info "Project already exists. Updating visibility to public..."
-	curl --request PUT --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
+if [ -n "${PROJECT_ID:-}" ]; then
+	info "Projet déjà existant (id=$PROJECT_ID), mise à jour visibilité → public…"
+	curl -sS --request PUT --header "PRIVATE-TOKEN: $PAT" \
 		--data "visibility=public" \
-		"http://gitlab.local:8889/api/v4/projects/$PROJECT_ID"
+		"$API/projects/$PROJECT_ID" >/dev/null
 else
-	info "Creating new public GitLab project '$REPO_NAME'..."
-	curl --header "PRIVATE-TOKEN: $PRIVATE_TOKEN" \
+	info "Création du projet public '$REPO_NAME'…"
+	# NOTE: namespace root → /root/<name>
+	curl -sS --header "PRIVATE-TOKEN: $PAT" \
 		--data "name=$REPO_NAME" \
 		--data "visibility=public" \
-		http://gitlab.local:8889/api/v4/projects
+		"$API/projects" >/dev/null
 fi
+success "Projet GitLab prêt"
 
-GITLAB_REPO="http://root:$GITLAB_PASSWORD@gitlab.local:8889/root/$REPO_NAME.git"
-
-info "Cloning GitHub repo..."
-git clone "$GITHUB_REPO" /tmp/iot
+info "Clone GitHub → /tmp/iot …"
+rm -rf /tmp/iot
+git clone "$GITHUB_REPO" /tmp/iot >/dev/null
 cd /tmp/iot
 
-info "Pushing to GitLab repo..."
+GITLAB_REPO="http://root:${PAT}@gitlab.local/root/${REPO_NAME}.git"
+info "Push --mirror vers GitLab…"
 git remote set-url origin "$GITLAB_REPO"
-git push --mirror
-success "Repo pushed to GitLab."
+git push --mirror >/dev/null
+cd - >/dev/null
 rm -rf /tmp/iot
-success "Cleaned up temporary GitHub repo clone."
+success "Repo push vers GitLab"
 
 ### Reload confs argocd
-kubectl apply -f "$SCRIPT_DIR/../confs/argocd.yaml" -n argocd
+kubectl apply -f "$SCRIPT_DIR/../confs/argocd-app.yaml" -n argocd
+success "Argo CD Application appliquée"
 
 # Credentials
-GITLAB_PASSWORD=$(kubectl get secret gitlab-gitlab-initial-root-password -n gitlab -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "Not Found")
-if [ "$GITLAB_PASSWORD" != "Not Found" ]; then
-	echo -e "${YELLOW}GitLab available at: http://localhost:8889"
-	echo -e "Login: root"
-	echo -e "Password: $GITLAB_PASSWORD${NC}"
-	success "GitLab credentials retrieved."
-else
-	echo -e "${RED}✘ Could not retrieve GitLab password. Did you install GitLab correctly?${NC}"
-fi
+echo
+echo -e "${YELLOW}GitLab:  ${NC}http://gitlab.local"
+echo -e "${YELLOW}Login:   ${NC}root"
+echo -e "${YELLOW}Password:${NC} $GITLAB_PASSWORD"
+echo -e "${YELLOW}PAT:     ${NC} $PAT (scopes: api, read_repository, write_repository)"
+echo
+success "Installation bonus GitLab terminée"
