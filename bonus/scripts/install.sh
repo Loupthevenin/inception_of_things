@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-pkill -f "kubectl port-forward"
+pkill -f "kubectl port-forward" || true
 
 function info {
 	echo -e "${CYAN}➜ $1${NC}"
