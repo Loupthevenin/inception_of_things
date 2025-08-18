@@ -99,50 +99,7 @@ for i in {1..30}; do
 	fi
 done
 
-## Ajouter le repo github a gitlab
-info "Authenticating and creating GitLab project..."
 GITLAB_PASSWORD=$(kubectl get secret gitlab-gitlab-initial-root-password -n gitlab -o jsonpath="{.data.password}" | base64 -d 2>/dev/null || echo "Not Found")
-if [ "$GITLAB_PASSWORD" = "Not Found" ]; then
-	echo -e "${RED}✘ Could not retrieve GitLab password. Did you install GitLab correctly?${NC}"
-	exit 1
-fi
-
-info "Création d’un Personal Access Token (root) via gitlab-toolbox…"
-TOOLBOX_POD=$(kubectl -n gitlab get pod -l app=toolbox -o jsonpath='{.items[0].metadata.name}')
-[ -z "$TOOLBOX_POD" ] && fail "Pod toolbox introuvable (attends encore un peu et relance)"
-
-PAT=$(openssl rand -hex 24)
-
-kubectl -n gitlab exec "$TOOLBOX_POD" -- bash -lc "
-TOKEN='$PAT' gitlab-rails runner \"
-u = User.find_by_username('root');
-t = u.personal_access_tokens.find_by(name: 'bootstrap') || u.personal_access_tokens.build(name: 'bootstrap', scopes: [:api, :read_api, :read_repository, :write_repository]);
-t.set_token(ENV['TOKEN']);
-t.expires_at = 1.year.from_now;
-t.save!;
-puts 'OK';
-\"
-" >/dev/null
-success "PAT root créé"
-
-success "Projet GitLab prêt"
-
-info "Clone GitHub → /tmp/iot …"
-rm -rf /tmp/iot
-git clone "$GITHUB_REPO" /tmp/iot >/dev/null
-cd /tmp/iot
-
-GITLAB_REPO="http://root:${PAT}@gitlab.local/root/${REPO_NAME}.git"
-info "Push --mirror vers GitLab…"
-git remote set-url origin "$GITLAB_REPO"
-git push --mirror >/dev/null
-cd - >/dev/null
-rm -rf /tmp/iot
-success "Repo push vers GitLab"
-
-### Reload confs argocd
-kubectl apply -f "$SCRIPT_DIR/../confs/argocd-app.yaml" -n argocd
-success "Argo CD Application appliquée"
 
 # Credentials
 echo
