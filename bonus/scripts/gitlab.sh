@@ -58,7 +58,7 @@ info "Installing Gitlab with Helm..."
 helm upgrade --install gitlab gitlab/gitlab \
 	--namespace gitlab \
 	-f https://gitlab.com/gitlab-org/charts/gitlab/raw/master/examples/values-minikube-minimum.yaml \
-	--set global.hosts.domain=gitlab.local \
+	--set global.hosts.domain=local \
 	--set global.hosts.https=false \
 	--timeout 30m
 success "GitLab installed in 'gitlab' namespace."
@@ -86,7 +86,18 @@ success "Ingress appliqué"
 info "Setting up port-forward for GitLab Webservice on localhost:8181..."
 kubectl -n gitlab port-forward svc/gitlab-webservice-default 8181:80 >/dev/null 2>&1 &
 PF_PID=$!
-success "Port-forward lancé (PID=$PF_PID) → http://gitlab.local:8181"
+success "Port-forward lancé (PID=$PF_PID) → http://gitlab.local"
+
+# Attente que le port soit bien accessible
+info "Attente que Gitlab  Webservice soit disponible via le port-forward..."
+for i in {1..30}; do
+	if curl -s http://gitlab.local/users/sign_in >/dev/null; then
+		success "Gitlab Webservice est accessible"
+		break
+	else
+		sleep 1
+	fi
+done
 
 ## Ajouter le repo github a gitlab
 info "Authenticating and creating GitLab project..."
@@ -114,30 +125,6 @@ puts 'OK';
 " >/dev/null
 success "PAT root créé"
 
-if ! command -v jq &>/dev/null; then
-	info "Installing jq..."
-	sudo apt-get update -y
-	sudo apt-get install -y jq
-fi
-
-API="http://gitlab.local/api/v4"
-info "Vérification/création du projet '$REPO_NAME'…"
-PROJECT_ID=$(curl -sS --header "PRIVATE-TOKEN: $PAT" "$API/projects?search=$REPO_NAME" |
-	jq -r ".[] | select(.name==\"$REPO_NAME\") | .id")
-
-if [ -n "${PROJECT_ID:-}" ]; then
-	info "Projet déjà existant (id=$PROJECT_ID), mise à jour visibilité → public…"
-	curl -sS --request PUT --header "PRIVATE-TOKEN: $PAT" \
-		--data "visibility=public" \
-		"$API/projects/$PROJECT_ID" >/dev/null
-else
-	info "Création du projet public '$REPO_NAME'…"
-	# NOTE: namespace root → /root/<name>
-	curl -sS --header "PRIVATE-TOKEN: $PAT" \
-		--data "name=$REPO_NAME" \
-		--data "visibility=public" \
-		"$API/projects" >/dev/null
-fi
 success "Projet GitLab prêt"
 
 info "Clone GitHub → /tmp/iot …"

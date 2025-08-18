@@ -24,6 +24,32 @@ function error_exit {
 	exit 1
 }
 
+function safe_port_forward {
+	local namespace=$1
+	local service=$2
+	local ports=$3
+
+	info "Starting port-forward to service '$service' in namespace '$namespace'..."
+	kubectl port-forward svc/$service -n $namespace $ports >/tmp/portforward-$service.log 2>&1 &
+	PF_PID=$!
+
+	# Vérifie que le port est bien ouvert
+	ATTEMPTS=0
+	until nc -z localhost ${ports%%:*} || [ $ATTEMPTS -ge 10 ]; do
+		echo -e "${YELLOW}➜ Waiting for port-forward to be ready... (${ATTEMPTS}/10)${NC}"
+		ATTEMPTS=$((ATTEMPTS + 1))
+		sleep 2
+	done
+
+	if ! nc -z localhost ${ports%%:*}; then
+		echo -e "${RED}✘ Port-forward to $service failed. Check /tmp/portforward-$service.log${NC}"
+		kill $PF_PID >/dev/null 2>&1 || true
+		exit 1
+	fi
+
+	success "Port-forward active on http://localhost:${ports%%:*}"
+}
+
 # Dependencies
 info "Installing required packages..."
 sudo apt update -y
@@ -92,7 +118,8 @@ kubectl wait --for=condition=available --timeout=180s -n argocd deploy/argocd-se
 success "Argo CD is ready."
 
 info "Starting port-forward on Argo CD UI (localhost:8080)..."
-kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
+# kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
+safe_port_forward argocd argocd-server 8080:443
 sleep 2
 
 info "Applying Argo CD Application manifest..."
@@ -127,8 +154,8 @@ kubectl wait --for=condition=ready pod -l app=wil-playground -n dev --timeout=12
 
 #port-forward
 info "Starting port-forward to service 'wil-playground'..."
-kubectl port-forward svc/wil-playground -n dev 8888:8888 >/dev/null 2>&1 &
+# kubectl port-forward svc/wil-playground -n dev 8888:8888 >/dev/null 2>&1 &
+safe_port_forward dev wil-playground 8888:8888
 sleep 2
 
 info "Setup complete!"
-
