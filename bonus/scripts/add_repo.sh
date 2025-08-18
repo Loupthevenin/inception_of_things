@@ -53,10 +53,19 @@ success "PAT root créé"
 REPO_NAME="iot-ltheveni"
 
 info "Création du projet GitLab '$REPO_NAME'..."
-curl -s --header "PRIVATE-TOKEN: $PAT" \
+CREATE_OUTPUT=$(curl -s -o /tmp/gitlab-create.log -w "%{http_code}" \
+	--header "PRIVATE-TOKEN: $PAT" \
 	--header "Content-Type: application/json" \
-	--data "{\"name\": \"$REPO_NAME\", \"visibility\": \"private\"}" \
-	"http://gitlab.local/api/v4/projects" >/dev/null
+	--data "{\"name\": \"$REPO_NAME\", \"visibility\": \"public\"}" \
+	"http://gitlab.local/api/v4/projects")
+
+if [ "$CREATE_OUTPUT" -eq 201 ]; then
+	success "Projet '$REPO_NAME' créé dans GitLab (public)."
+elif [ "$CREATE_OUTPUT" -eq 400 ]; then
+	info "Projet '$REPO_NAME' existe déjà, on continue..."
+else
+	error_exit "Échec de la création du projet GitLab (code $CREATE_OUTPUT). Voir /tmp/gitlab-create.log"
+fi
 
 success "Projet '$REPO_NAME' créé dans GitLab."
 

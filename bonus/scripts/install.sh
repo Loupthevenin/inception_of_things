@@ -32,8 +32,9 @@ function safe_port_forward {
 	local ports=$3
 
 	info "Starting port-forward to service '$service' in namespace '$namespace'..."
-	kubectl port-forward svc/$service -n $namespace $ports >/tmp/portforward-$service.log 2>&1 &
+	nohup kubectl port-forward svc/$service -n $namespace $ports >"/tmp/portforward-$service.log" 2>&1 &
 	PF_PID=$!
+	disown $PF_PID
 
 	# Vérifie que le port est bien ouvert
 	ATTEMPTS=0
