@@ -1,6 +1,26 @@
 #!/bin/bash
 set -e
 
+# Couleurs
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+function info {
+	echo -e "${CYAN}➜ $1${NC}"
+}
+
+function success {
+	echo -e "${GREEN}✔ $1${NC}"
+}
+
+function error_exit {
+	echo -e "${RED}✔ $1${NC}"
+	exit 1
+}
+
 GITHUB_REPO="https://github.com/Loupthevenin/iot-ltheveni.git"
 GITLAB_REPO="http://root:$GITLAB_PASSWORD@gitlab.local:8889/root/iot-ltheveni.git"
 
@@ -30,7 +50,15 @@ puts 'OK';
 " >/dev/null
 success "PAT root créé"
 
-success "Projet GitLab prêt"
+REPO_NAME="iot-ltheveni"
+
+info "Création du projet GitLab '$REPO_NAME'..."
+curl -s --header "PRIVATE-TOKEN: $PAT" \
+	--header "Content-Type: application/json" \
+	--data "{\"name\": \"$REPO_NAME\", \"visibility\": \"private\"}" \
+	"http://gitlab.local/api/v4/projects" >/dev/null
+
+success "Projet '$REPO_NAME' créé dans GitLab."
 
 info "Clone GitHub → /tmp/iot …"
 rm -rf /tmp/iot
