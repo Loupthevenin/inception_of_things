@@ -77,7 +77,8 @@ cd /tmp/iot
 GITLAB_REPO="http://root:${PAT}@gitlab.local/root/${REPO_NAME}.git"
 info "Push --mirror vers GitLab…"
 git remote set-url origin "$GITLAB_REPO"
-git push --mirror >/dev/null
+git push --all >/dev/null
+git push --tags >/dev/null
 cd - >/dev/null
 rm -rf /tmp/iot
 success "Repo push vers GitLab"

@@ -136,13 +136,13 @@ echo -e "Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o
 
 info "Waiting for wil-playground Pod to be created by ArgoCD..."
 ATTEMPTS=0
-until kubectl get pod -l app=wil-playground -n dev 2>/dev/null | grep -q wil-playground || [ $ATTEMPTS -ge 60 ]; do
-	echo -e "${YELLOW}➜ Pod not found yet. Waiting... (${ATTEMPTS}/60)${NC}"
+until kubectl get pod -l app=wil-playground -n dev 2>/dev/null | grep -q wil-playground || [ $ATTEMPTS -ge 120 ]; do
+	echo -e "${YELLOW}➜ Pod not found yet. Waiting... (${ATTEMPTS}/120)${NC}"
 	ATTEMPTS=$((ATTEMPTS + 1))
 	sleep 5
 done
 
-if [ $ATTEMPTS -ge 24 ]; then
+if [ $ATTEMPTS -ge 120 ]; then
 	echo -e "${RED}✘ Timeout: Pod was not created after 2 minutes.${NC}"
 	kubectl get pods -n dev
 	exit 1
@@ -159,6 +159,11 @@ kubectl wait --for=condition=ready pod -l app=wil-playground -n dev --timeout=12
 info "Starting port-forward to service 'wil-playground'..."
 # kubectl port-forward svc/wil-playground -n dev 8888:8888 >/dev/null 2>&1 &
 safe_port_forward dev wil-playground 8888:8888
+sleep 2
+
+info "Starting port-forward on Argo CD UI (localhost:8080)..."
+# kubectl port-forward svc/argocd-server -n argocd 8080:443 >/dev/null 2>&1 &
+safe_port_forward argocd argocd-server 8080:443
 sleep 2
 
 info "Setup complete!"
